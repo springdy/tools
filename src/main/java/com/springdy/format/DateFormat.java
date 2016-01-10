@@ -12,4 +12,10 @@ public class DateFormat {
         SimpleDateFormat format1 = new SimpleDateFormat(format);
         return format1.parse(value);
     }
+
+    public static String format(Date date,String format) throws ParseException {
+        SimpleDateFormat format1 = new SimpleDateFormat(format);
+        return format1.format(date);
+    }
+
 }
