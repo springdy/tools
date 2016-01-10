@@ -356,6 +356,7 @@ public final class FetchUtils {
      * http post调用
      */
     public static String post(HttpRequestData data, String url, Map<String, String> inputs, Map<String, String> headers) throws IOException {
+        url = urlSpecialChar(url);
         PostMethod post = new PostMethod(url);
         HttpClient httpClient = data.getHttpClient();
         try {
