@@ -28,7 +28,7 @@ public class MultiPageStore {
         return !rootMap.isEmpty();
     }
 
-    public void addFile(String path, String content) {
+    public synchronized void addFile(String path, String content) {
         // path path1/path2
         String[] filter = path.split("/");
         Map<String, Object> tempMap = rootMap;
@@ -52,7 +52,7 @@ public class MultiPageStore {
         }
     }
 
-    public void addFile(String path, byte[] bytes) {
+    public synchronized void addFile(String path, byte[] bytes) {
         // path path1/path2
         String[] filter = path.split("/");
         Map<String, Object> tempMap = rootMap;
@@ -76,7 +76,7 @@ public class MultiPageStore {
         }
     }
 
-    public boolean exists(String path) {
+    public synchronized boolean exists(String path) {
         // path path1/path2
         String[] filter = path.split("/");
         Map<String, Object> tempMap = rootMap;
@@ -97,7 +97,7 @@ public class MultiPageStore {
         return false;
     }
 
-    public Object getFile(String path) {
+    public synchronized Object getFile(String path) {
         // path path1/path2
         String[] filter = path.split("/");
         Map<String, Object> tempMap = rootMap;
