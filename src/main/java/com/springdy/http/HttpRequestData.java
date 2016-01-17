@@ -24,7 +24,7 @@ public class HttpRequestData implements Serializable {
     private static final Logger log = LoggerFactory.getLogger(HttpRequestData.class);
     private Map<String, String> headers;
     private Map<String, String> responseHeaders;
-    private transient HttpClient httpClient;
+    private HttpClient httpClient;
     private String url;
 
     /**
@@ -153,9 +153,10 @@ public class HttpRequestData implements Serializable {
     public Map<String, String> getCookieMap(String domain) {
         Map<String, String> cookieMap = new HashMap<String, String>();
         for (Cookie c : getHttpClient().getState().getCookies()) {
-            if(c.getValue().contains(domain)) {
-                cookieMap.put(c.getName(), c.getValue());
-            }
+//            if(c.getDomain().contains(domain)) {
+//                cookieMap.put(c.getName(), c.getValue());
+//            }
+            cookieMap.put(c.getName(), c.getValue());
         }
         return cookieMap;
     }
