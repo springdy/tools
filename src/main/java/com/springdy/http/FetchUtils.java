@@ -32,7 +32,7 @@ public final class FetchUtils {
                 method.addRequestHeader("User-Agent", UserAgent.WIN_CHROME);
             }
             if (!headers.containsKey("Accept-Encoding")) {// 无ua，默认为ie8
-                method.addRequestHeader("User-Agent", "gzip, deflate");
+                method.addRequestHeader("Accept-Encoding", "gzip");
             }
             for (Entry<String, String> entry : headers.entrySet()) {
                 method.addRequestHeader(entry.getKey(), entry.getValue());
@@ -41,7 +41,7 @@ public final class FetchUtils {
             //默认的请求头
             method.addRequestHeader("User-Agent", UserAgent.WIN_CHROME);
             //支持gzip解压
-            method.addRequestHeader("Accept-Encoding", "gzip, deflate");
+            method.addRequestHeader("Accept-Encoding", "gzip");
 
         }
         method.getParams().setVersion(HttpVersion.HTTP_1_1);
@@ -71,17 +71,17 @@ public final class FetchUtils {
             charset = DEFAOUT_CHARSET;
         }
         Header ceHeader = method.getResponseHeader("Content-Encoding");
-        Integer contentLen = null;
+        long contentLen = 0l;
         if (null != method.getRequestHeader("Content-Length")) {
-            contentLen = Integer.valueOf(method.getRequestHeader("Content-Length").getValue());
+            contentLen = Long.valueOf(method.getRequestHeader("Content-Length").getValue());
         }
         if (null != ceHeader) {
             if (ceHeader.getValue().contains("gzip")) {
                 byte[] bytes = null;
-                return inputStreamAsString(new GZIPInputStream(method.getResponseBodyAsStream()), charset);
+                return inputStreamAsString(new GZIPInputStream(method.getResponseBodyAsStream()), charset,contentLen);
             }
         }
-        html = inputStreamAsString(method.getResponseBodyAsStream(), charset);
+        html = inputStreamAsString(method.getResponseBodyAsStream(), charset,contentLen);
         return html;
     }
 
@@ -89,7 +89,7 @@ public final class FetchUtils {
      * 将数据流处理成字符串
      * 处理网页编码问题
      */
-    private static String inputStreamAsString(InputStream in, String charset) {
+    private static String inputStreamAsString(InputStream in, String charset,long contentLength) {
         try {
             if (null == charset) {
                 charset = DEFAOUT_CHARSET;
@@ -101,14 +101,15 @@ public final class FetchUtils {
             if (null != cs) {
                 charset = cs;
             }
-            StringBuilder bufferStr = new StringBuilder();
-            bufferStr.append(new String(buffer, 0, len, charset));
+            ByteArrayOutputStream outstream = new ByteArrayOutputStream(contentLength > 0L?(int) contentLength:1024);
+            outstream.write(buffer, 0, len);
             if (len > 0) {
                 while ((len = in.read(buffer)) > 0) {
-                    bufferStr.append(new String(buffer, 0, len, charset));
+                    outstream.write(buffer, 0, len);
                 }
             }
-            return bufferStr.toString();
+            outstream.close();
+            return new String(outstream.toByteArray(),charset);
         } catch (IOException e) {
             log.error(e.getMessage(), e);
         } finally {

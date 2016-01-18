@@ -121,7 +121,7 @@ public class MultiPageStore {
     }
 
     public void printFileInfo() {
-        printMapInfo(rootMap, "root");
+        printMapInfo(rootMap, "file:");
     }
 
     public void printMapInfo(Map<String, Object> map, String path) {
@@ -129,7 +129,6 @@ public class MultiPageStore {
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             if ("String".equals(entry.getValue().getClass().getSimpleName())) {
                 System.out.println(path + FILE_SEPARATOR + entry.getKey());
-                // System.out.println((String)entry.getValue());
             } else {
                 String nextpath = path + FILE_SEPARATOR + entry.getKey();
                 Object obj = entry.getValue();
