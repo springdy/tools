@@ -6,6 +6,7 @@ import org.apache.commons.httpclient.methods.GetMethod;
 import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.commons.httpclient.methods.RequestEntity;
 import org.apache.commons.httpclient.methods.StringRequestEntity;
+import org.apache.commons.httpclient.methods.multipart.*;
 import org.apache.commons.httpclient.params.HttpMethodParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.net.SocketTimeoutException;
 import java.net.URLEncoder;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.zip.GZIPInputStream;
@@ -78,10 +80,10 @@ public final class FetchUtils {
         if (null != ceHeader) {
             if (ceHeader.getValue().contains("gzip")) {
                 byte[] bytes = null;
-                return inputStreamAsString(new GZIPInputStream(method.getResponseBodyAsStream()), charset,contentLen);
+                return inputStreamAsString(new GZIPInputStream(method.getResponseBodyAsStream()), charset, contentLen);
             }
         }
-        html = inputStreamAsString(method.getResponseBodyAsStream(), charset,contentLen);
+        html = inputStreamAsString(method.getResponseBodyAsStream(), charset, contentLen);
         return html;
     }
 
@@ -89,7 +91,7 @@ public final class FetchUtils {
      * 将数据流处理成字符串
      * 处理网页编码问题
      */
-    private static String inputStreamAsString(InputStream in, String charset,long contentLength) {
+    private static String inputStreamAsString(InputStream in, String charset, long contentLength) {
         try {
             if (null == charset) {
                 charset = DEFAOUT_CHARSET;
@@ -101,7 +103,7 @@ public final class FetchUtils {
             if (null != cs) {
                 charset = cs;
             }
-            ByteArrayOutputStream outstream = new ByteArrayOutputStream(contentLength > 0L?(int) contentLength:1024);
+            ByteArrayOutputStream outstream = new ByteArrayOutputStream(contentLength > 0L ? (int) contentLength : 1024);
             outstream.write(buffer, 0, len);
             if (len > 0) {
                 while ((len = in.read(buffer)) > 0) {
@@ -109,7 +111,7 @@ public final class FetchUtils {
                 }
             }
             outstream.close();
-            return new String(outstream.toByteArray(),charset);
+            return new String(outstream.toByteArray(), charset);
         } catch (IOException e) {
             log.error(e.getMessage(), e);
         } finally {
@@ -489,6 +491,41 @@ public final class FetchUtils {
      */
     private static String completeUrl(String base, String href) {
         return URLUtil.completeUrl(href, base);
+    }
+
+    public static String postFormData(HttpRequestData data, String url, Map<String, Object> inputs) throws IOException {
+        return postFormData(data, url, inputs,null);
+    }
+
+    public static String postFormData(HttpRequestData data, String url, Map<String, Object> inputs, Map<String, String> headers) throws IOException {
+        HttpClient httpClient = new HttpClient();
+        PostMethod post = new PostMethod(url);
+        try {
+            initHttpMethod(post, headers);
+            Part[] parts = new Part[inputs.size()];
+            int index = 0;
+            for (Map.Entry<String, Object> entry : inputs.entrySet()) {
+                Object valueObj = entry.getValue();
+                if (valueObj instanceof byte[]) {
+                    ByteArrayPartSource byteArrayPartSource = new ByteArrayPartSource("valid.jpeg", (byte[]) entry.getValue());
+                    parts[index] = new FilePart(entry.getKey(), byteArrayPartSource, " image/jpeg", "utf-8");
+                } else {
+                    //其余为String
+                    parts[index] = new StringPart(entry.getKey(), (String) entry.getValue(),"utf-8");
+                }
+                index ++;
+            }
+            MultipartRequestEntity entity = new MultipartRequestEntity(parts, post.getParams());
+            post.setRequestEntity(entity);
+            return executeMethod(post, url, data);
+        } catch (SocketTimeoutException e) {
+            throw e;
+        } catch (ConnectTimeoutException e) {
+            throw e;
+        } finally {
+            post.releaseConnection();
+            httpClient.getHttpConnectionManager().closeIdleConnections(0);
+        }
     }
 
     public static void main(String[] args) {
