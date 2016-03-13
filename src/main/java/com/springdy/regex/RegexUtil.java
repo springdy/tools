@@ -2,11 +2,22 @@ package com.springdy.regex;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class RegexUtil {
+	private static ConcurrentHashMap<String, Pattern> PATTERN_MAP = new ConcurrentHashMap<String, Pattern>();
+
+	private static Pattern getPattern(String regex){
+		Pattern pattern = PATTERN_MAP.get(regex);
+		if(null == pattern){
+			pattern = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
+			PATTERN_MAP.put(regex,pattern);
+		}
+		return pattern;
+	}
 
 	public static String singleExtract(String content, Pattern pattern, int groupIndex) {
 		Matcher matcher = pattern.matcher(content);
@@ -17,7 +28,7 @@ public class RegexUtil {
 	}
 
 	public static String singleExtract(String content, String regex, int groupIndex) {
-		Pattern pattern = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
+		Pattern pattern = getPattern(regex).compile(regex, Pattern.CASE_INSENSITIVE);
 		Matcher matcher = pattern.matcher(content);
 		if (matcher.find()) {
 			return matcher.group(groupIndex);
@@ -26,8 +37,7 @@ public class RegexUtil {
 	}
 
 	public static List<String> multiExtract(String content, String regex, int groupIndex) {
-		Pattern pattern = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
-		Matcher matcher = pattern.matcher(content);
+		Matcher matcher = getPattern(regex).matcher(content);
 		List<String> list = new ArrayList<String>();
 		while (matcher.find()) {
 			list.add(matcher.group(groupIndex));
@@ -36,8 +46,7 @@ public class RegexUtil {
 	}
 
 	public static String[] multiExtract(String content, String regex, int groupIndex, int arrayLength) {
-		Pattern pattern = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
-		Matcher matcher = pattern.matcher(content);
+		Matcher matcher = getPattern(regex).matcher(content);
 		String[] array = new String[arrayLength];
 		int i = 0;
 		while (matcher.find()) {
@@ -50,8 +59,7 @@ public class RegexUtil {
 	}
 
 	public static MatchResult singleExtractToMatchResult(String content, String regex) {
-		Pattern pattern = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
-		Matcher matcher = pattern.matcher(content);
+		Matcher matcher = getPattern(regex).matcher(content);
 		while (matcher.find()) {
 			return matcher.toMatchResult();
 		}
@@ -59,8 +67,7 @@ public class RegexUtil {
 	}
 
 	public static List<MatchResult> multiExtractToMatchResult(String content, String regex) {
-		Pattern pattern = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
-		Matcher matcher = pattern.matcher(content);
+		Matcher matcher = getPattern(regex).matcher(content);
 		List<MatchResult> matchResults = new ArrayList<MatchResult>();
 		while (matcher.find()) {
 			matchResults.add(matcher.toMatchResult());
@@ -78,8 +85,7 @@ public class RegexUtil {
 	}
 
 	public static boolean match(String content, String regex) {
-		Pattern pattern = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
-		Matcher matcher = pattern.matcher(content);
+		Matcher matcher = getPattern(regex).matcher(content);
 		return matcher.find();
 	}
 	

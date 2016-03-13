@@ -17,7 +17,7 @@ import java.util.Map;
 /**
  * 在需要换ip的时候，不建议重新new一个该对象，建议使用以下方法
  *
- * @author kafka
+ * @author springdy
  */
 public class HttpRequestData implements Serializable {
     private static final long serialVersionUID = 154983995789725361L;

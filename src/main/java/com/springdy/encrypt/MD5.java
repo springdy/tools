@@ -11,14 +11,14 @@ public class MD5 {
    * Md5 加密
    * */
     public  static String encode(String value){
+        MessageDigest mdInst = null;
         try {
-            MessageDigest mdInst = MessageDigest.getInstance("MD5");
-            mdInst.update(value.getBytes());
-            return  bytesToHexString(mdInst.digest());
+            mdInst = MessageDigest.getInstance("MD5");
         } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
+            //MD5指定，存在异常情况
         }
-        return  null;
+        mdInst.update(value.getBytes());
+        return bytesToHexString(mdInst.digest());
     }
 
     /**
