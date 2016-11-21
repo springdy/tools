@@ -1,546 +1,274 @@
 package com.springdy.http;
 
-import com.springdy.regex.RegexUtil;
-import org.apache.commons.httpclient.*;
-import org.apache.commons.httpclient.methods.GetMethod;
-import org.apache.commons.httpclient.methods.PostMethod;
-import org.apache.commons.httpclient.methods.RequestEntity;
-import org.apache.commons.httpclient.methods.StringRequestEntity;
-import org.apache.commons.httpclient.methods.multipart.*;
-import org.apache.commons.httpclient.params.HttpMethodParams;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.message.HeaderGroup;
+import org.apache.http.util.EntityUtils;
 
-import java.io.*;
-import java.net.SocketTimeoutException;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.zip.GZIPInputStream;
 
-public final class FetchUtils {
-    private static final Logger log = LoggerFactory.getLogger(FetchUtils.class);
-    private static int size = 1 << 23;
-    private static int DEFAOUT_TIMEOUT = 10000;
-    private static String DEFAOUT_CHARSET = "utf-8";
+/**
+ * Created by springdy on 2016/4/14.
+ */
+public class FetchUtils {
+    //默认的编码
+    public final static String DEFAOUT_CHARSET = "UTF-8";
+    private final static String DEFAOUT_CONTENTTYPE = "text/html";
+    private final static Map<String, String> DEAULT_HEAHDERMAP = new HashMap<>();
 
-    /**
-     * 初始化httpMethod
-     */
-    private static void initHttpMethod(HttpMethod method, Map<String, String> headers) throws URIException {
-        if (null != headers) {// 添加请求头参数
-            if (!headers.containsKey("User-Agent")) {// 无ua，默认为ie8
-                method.addRequestHeader("User-Agent", UserAgent.WIN_CHROME);
-            }
-            if (!headers.containsKey("Accept-Encoding")) {// 无ua，默认为ie8
-                method.addRequestHeader("Accept-Encoding", "gzip");
-            }
-            for (Entry<String, String> entry : headers.entrySet()) {
-                method.addRequestHeader(entry.getKey(), entry.getValue());
-            }
-        } else {
-            //默认的请求头
-            method.addRequestHeader("User-Agent", UserAgent.WIN_CHROME);
-            //支持gzip解压
-            method.addRequestHeader("Accept-Encoding", "gzip");
-
-        }
-        method.getParams().setVersion(HttpVersion.HTTP_1_1);
-        method.getParams().setBooleanParameter(HttpMethodParams.SINGLE_COOKIE_HEADER, true);
-        method.getParams().setSoTimeout(DEFAOUT_TIMEOUT);// 10秒超时response
-        method.setFollowRedirects(false);
+    static {
+        //支持压缩
+        DEAULT_HEAHDERMAP.put("Accept-Encoding", "gzip");
+        DEAULT_HEAHDERMAP.put("Accept", "text/html, application/xhtml+xml, image/jxr, */*");
+        DEAULT_HEAHDERMAP.put("Accept-Language", "zh-Hans-CN,zh-Hans;q=0.5");
+        DEAULT_HEAHDERMAP.put("Content-Type", "application/x-www-form-urlencoded");
+        //chrome
+        DEAULT_HEAHDERMAP.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.110 Safari/537.36");
     }
 
-    /**
-     *
-     */
-    private static String executeMethod(HttpMethod method, String url, HttpRequestData data) throws IOException {
-        data.getHttpClient().executeMethod(method);
-        data.setResponseHeaders(method.getResponseHeaders());
-        Header header = method.getResponseHeader("Location");
-        if (null != header) {
-            String location = header.getValue();
-            String targetUrl = completeUrl(url, location);
-            targetUrl = targetUrl.replaceAll(" ", "");
-            return get(data, targetUrl);
-        }
-        String charset = null;
-        String html = null;
-        String contentType = method.getResponseHeader("Content-Type").getValue();
-        charset = RegexUtil.singleExtract(contentType, "charset=([\\w-\\d]+)", 1);
-        if (null == charset) {
-            charset = DEFAOUT_CHARSET;
-        }
-        Header ceHeader = method.getResponseHeader("Content-Encoding");
-        long contentLen = 0l;
-        if (null != method.getRequestHeader("Content-Length")) {
-            contentLen = Long.valueOf(method.getRequestHeader("Content-Length").getValue());
-        }
-        if (null != ceHeader) {
-            if (ceHeader.getValue().contains("gzip")) {
-                byte[] bytes = null;
-                return inputStreamAsString(new GZIPInputStream(method.getResponseBodyAsStream()), charset, contentLen);
-            }
-        }
-        html = inputStreamAsString(method.getResponseBodyAsStream(), charset, contentLen);
-        return html;
+    public static String get(String url) throws IOException {
+        return get(HttpClients.getDefaultClient(), url, null, null);
     }
 
-    /**
-     * 将数据流处理成字符串
-     * 处理网页编码问题
-     */
-    private static String inputStreamAsString(InputStream in, String charset, long contentLength) {
+    public static String get(String url, RequestConfig requestConfig) throws IOException {
+        return get(HttpClients.getDefaultClient(), url, requestConfig, null);
+    }
+
+    public static String get(String url, Map<String, String> inputs, RequestConfig requestConfig) throws IOException {
+        url = getInputsUrl(url, inputs);
+        return get(HttpClients.getDefaultClient(), url, requestConfig, null);
+    }
+
+    public static String get(String url, Map<String, String> inputs) throws IOException {
+        url = getInputsUrl(url, inputs);
+        return get(HttpClients.getDefaultClient(), url, null, null);
+    }
+
+    public static String get(HttpClient client, String url, Map<String, String> inputs) throws IOException {
+        url = getInputsUrl(url, inputs);
+        return get(client, url, null, null);
+    }
+
+    public static String get(HttpClient client, String url) throws IOException {
+        return get(client, url, null, null);
+    }
+
+    private static String getInputsUrl(String url, Map<String, String> inputs) throws UnsupportedEncodingException {
+        if (null != inputs) {
+            StringBuilder urlBuilder = new StringBuilder(url);
+            boolean first = true;
+            // reconstitute the query, ready for appends
+            if (!url.contains("?"))
+                urlBuilder.append("?");
+            for (Map.Entry<String, String> entry : inputs.entrySet()) {
+                if (!first)
+                    urlBuilder.append('&');
+                else
+                    first = false;
+                urlBuilder.append(entry.getKey()).append('=').append(URLEncoder.encode(entry.getValue(), DEFAOUT_CHARSET));
+            }
+            url = urlBuilder.toString();
+        }
+        return url;
+    }
+
+    public static String get(String url, Map<String, String> inputs, RequestConfig requestConfig, Map<String, String> headers) throws IOException {
+
+        return get(HttpClients.getDefaultClient(), url, requestConfig, headers);
+    }
+
+    public static String get(String url, RequestConfig requestConfig, Map<String, String> headers) throws IOException {
+        return get(HttpClients.getDefaultClient(), url, requestConfig, headers);
+    }
+
+    public static String get(HttpClient client, String url, RequestConfig requestConfig, Map<String, String> headers) throws IOException {
+        String responseContent = null;
+        HttpGet get = null;
         try {
-            if (null == charset) {
-                charset = DEFAOUT_CHARSET;
+            get = new HttpGet(url);
+            if (null != requestConfig) {
+                get.setConfig(requestConfig);
             }
-            int len = 0;
-            byte[] buffer = new byte[1024];
-            len = in.read(buffer);
-            String cs = RegexUtil.singleExtract(new String(buffer, 0, len), "charset=([\\w-\\d]+)", 1);
-            if (null != cs) {
-                charset = cs;
-            }
-            ByteArrayOutputStream outstream = new ByteArrayOutputStream(contentLength > 0L ? (int) contentLength : 1024);
-            outstream.write(buffer, 0, len);
-            if (len > 0) {
-                while ((len = in.read(buffer)) > 0) {
-                    outstream.write(buffer, 0, len);
+            if (null == headers) {
+                headers = DEAULT_HEAHDERMAP;
+            } else {
+                //如果请求头没有默认值，使用默认值
+                for (Map.Entry<String, String> entry : DEAULT_HEAHDERMAP.entrySet()) {
+                    if (!headers.containsKey(entry.getKey())) {
+                        headers.put(entry.getKey(), entry.getValue());
+                    }
                 }
             }
-            outstream.close();
-            return new String(outstream.toByteArray(), charset);
+            HeaderGroup headerGroup = new HeaderGroup();
+            for (Map.Entry<String, String> entry : headers.entrySet()) {
+                headerGroup.addHeader(new BasicHeader(entry.getKey(), entry.getValue()));
+            }
+            get.setHeaders(headerGroup.getAllHeaders());
+            HttpResponse response = client.execute(get);
+            responseContent = EntityUtils.toString(response.getEntity());
+            // 确保实体内容被完全消耗
+            EntityUtils.consumeQuietly(response.getEntity());
+        } catch (ClientProtocolException e) {
+            throw new ClientProtocolException(e);
         } catch (IOException e) {
-            log.error(e.getMessage(), e);
+            throw new IOException(e);
         } finally {
-            try {
-                in.close();
-            } catch (IOException e) {
-                log.error(e.getMessage(), e);
+            if (null != get) {
+                get.releaseConnection();
             }
         }
-        return null;
+        return responseContent;
     }
 
-    /**
-     * url中特殊处理
-     */
-    public static String urlSpecialChar(String value) {
-        return value.replaceAll("&amp;", "&");
+    public static String post(String url, Map<String, String> inputs) throws IOException {
+        return post(HttpClients.getDefaultClient(), url, inputs, null, null);
     }
 
-    /**
-     * http get 字符数组
-     */
-    public static byte[] getBytes(HttpRequestData data, String url) throws IOException {
-        url = urlSpecialChar(url);
-        GetMethod get = new GetMethod(url);
-        HttpClient httpClient = data.getHttpClient();
+    public static String post(String url, Map<String, String> inputs, RequestConfig requestConfig) throws IOException {
+        return post(HttpClients.getDefaultClient(), url, inputs, requestConfig, null);
+    }
+
+    public static String post(String url, Map<String, String> inputs, Map<String, String> headers) throws IOException {
+        return post(HttpClients.getDefaultClient(), url, inputs, null, headers);
+    }
+
+    public static String post(HttpClient client, String url, Map<String, String> inputs) throws IOException {
+        return post(client, url, inputs, null, null);
+    }
+
+    public static String post(HttpClient client, String url) throws IOException {
+        return post(client, url, new HashMap<>(), null, null);
+    }
+
+    public static String post(HttpClient client, String url, Map<String, String> inputs, Map<String, String> headers) throws IOException {
+        return post(client, url, inputs, null, headers);
+    }
+
+
+    public static String post(String url, String requst) throws IOException {
+        return post(HttpClients.getDefaultClient(), url, new StringEntity(requst, "utf-8"), null, null);
+    }
+
+    public static String post(String url, String requst, RequestConfig requestConfig) throws IOException {
+        return post(HttpClients.getDefaultClient(), url, new StringEntity(requst, "utf-8"), requestConfig, null);
+    }
+
+    public static String post(String url, String requst, Map<String, String> headers) throws IOException {
+        return post(HttpClients.getDefaultClient(), url, new StringEntity(requst, "utf-8"), null, headers);
+    }
+
+    public static String post(String url, String requst, Map<String, String> headers, RequestConfig requestConfig) throws IOException {
+        return post(HttpClients.getDefaultClient(), url, new StringEntity(requst, "utf-8"), requestConfig, headers);
+    }
+
+    public static String post(HttpClient client, String url, String requst) throws IOException {
+        return post(client, url, new StringEntity(requst, "utf-8"), null, null);
+    }
+
+    public static String post(HttpClient client, String url, String requst, Map<String, String> headers) throws IOException {
+        return post(client, url, new StringEntity(requst, "utf-8"), null, headers);
+    }
+
+    public static String post(String url, HttpEntity httpEntity, RequestConfig requestConfig, Map<String, String> headers) throws IOException {
+        return post(HttpClients.getDefaultClient(), url, httpEntity, requestConfig, headers);
+    }
+
+    public static String post(HttpClient client, String url, HttpEntity httpEntity, RequestConfig requestConfig, Map<String, String> headers) throws IOException {
+        String responseContent = null;
+        HttpPost post = null;
         try {
-            initHttpMethod(get, data.getHeaders());
-            httpClient.executeMethod(get);
-            trace(httpClient, url, null);
-            data.setResponseHeaders(get.getResponseHeaders());
-            return get.getResponseBody(size);
-        } catch (SocketTimeoutException e) {
-            throw e;
-        } catch (ConnectTimeoutException e) {
-            throw e;
-        } finally {
-            get.releaseConnection();
-            httpClient.getHttpConnectionManager().closeIdleConnections(0);
-        }
-    }
-
-    public static byte[] getBytes(HttpRequestData data, String url, Map<String, String> input) throws IOException {
-        StringBuilder urlBuilder = new StringBuilder(url);
-        boolean first = true;
-        if (!url.contains("?"))
-            urlBuilder.append("?");
-        for (Entry<String, String> entry : input.entrySet()) {
-            if (!first)
-                urlBuilder.append('&');
-            else
-                first = false;
-            urlBuilder.append(entry.getKey()).append('=').append(URLEncoder.encode(entry.getValue(), DEFAOUT_CHARSET));
-        }
-        url = urlBuilder.toString();
-        return getBytes(data, url);
-    }
-
-    public static byte[] postBytes(HttpRequestData data, String url) throws IOException {
-        return postBytes(data, url, null);
-
-    }
-
-    public static byte[] postBytes(HttpRequestData data, String url, Map<String, String> inputs) throws IOException {
-        // 默认10秒
-        return postBytes(data, url, inputs, DEFAOUT_TIMEOUT);
-    }
-
-    public static byte[] postBytes(HttpRequestData data, String url, Map<String, String> inputs, Map<String, String> headers) throws IOException {
-        // 默认10秒
-        return postBytes(data, url, inputs, DEFAOUT_TIMEOUT, headers);
-    }
-
-    public static byte[] postBytes(HttpRequestData data, String url, Map<String, String> inputs, int milliseconds) throws IOException {
-        return postBytes(data, url, inputs, milliseconds, data.getHeaders());
-    }
-
-    public static byte[] postBytes(HttpRequestData data, String url, Map<String, String> inputs, int milliseconds, Map<String, String> headers) throws IOException {
-        PostMethod post = new PostMethod(url);
-        HttpClient httpClient = data.getHttpClient();
-        try {
-            initHttpMethod(post, headers);
-            post.getParams().setSoTimeout(milliseconds);// 设置超时
-            if (null != inputs) {
-                for (Entry<String, String> entry : inputs.entrySet()) {
-                    post.addParameter(entry.getKey(), entry.getValue());
+            post = new HttpPost(url);
+            if (null != requestConfig) {
+                post.setConfig(requestConfig);
+            }
+            if (null == headers) {
+                headers = DEAULT_HEAHDERMAP;
+            } else {
+                //如果请求头没有默认值，使用默认值
+                for (Map.Entry<String, String> entry : DEAULT_HEAHDERMAP.entrySet()) {
+                    if (!headers.containsKey(entry.getKey())) {
+                        headers.put(entry.getKey(), entry.getValue());
+                    }
                 }
             }
-            httpClient.executeMethod(post);
-
-            trace(httpClient, url, null);
-
-            return post.getResponseBody(size);
-        } catch (SocketTimeoutException e) {
-            throw e;
-        } catch (ConnectTimeoutException e) {
-            throw e;
-        } finally {
-            post.releaseConnection();
-            httpClient.getHttpConnectionManager().closeIdleConnections(0);
-        }
-    }
-
-    public static byte[] postBytes2(HttpRequestData data, String url, String encode) throws IOException {
-        return postBytes2(data, url, encode, null);
-    }
-
-    public static byte[] postBytes2(HttpRequestData data, String url, String encode, Map<String, String> inputs) throws IOException {
-        PostMethod post = new PostMethod(url);
-        HttpClient httpClient = data.getHttpClient();
-        StringBuilder postData = new StringBuilder();
-        try {
-            if (null != inputs) {
-                for (Entry<String, String> entry : inputs.entrySet()) {
-                    postData.append(URLEncoder.encode(entry.getKey(), encode)).append("=").append(URLEncoder.encode(entry.getValue(), encode)).append("&");
-                }
+            HeaderGroup headerGroup = new HeaderGroup();
+            headers.remove("Content-Type", "application/x-www-form-urlencoded");
+            for (Map.Entry<String, String> entry : headers.entrySet()) {
+                headerGroup.addHeader(new BasicHeader(entry.getKey(), entry.getValue()));
             }
-        } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
-        }
-        try {
-            initHttpMethod(post, null);
-            RequestEntity entity = new StringRequestEntity(postData.toString(), "text/html", encode);
-            post.setRequestEntity(entity);
-            httpClient.executeMethod(post);
-
-            trace(httpClient, url, null);
-
-            return post.getResponseBody(size);
-        } catch (SocketTimeoutException e) {
-            throw e;
-        } catch (ConnectTimeoutException e) {
-            throw e;
-        } finally {
-            post.releaseConnection();
-            httpClient.getHttpConnectionManager().closeIdleConnections(0);
-        }
-    }
-
-    /**
-     * http get调用
-     */
-    public static String get(HttpRequestData data, String url) throws IOException {
-        return get(data, url, null);
-    }
-
-    /**
-     * http get调用
-     */
-    public static String get(HttpRequestData data, String url, String charset) throws IOException {
-        url = urlSpecialChar(url);
-        data.setUrl(url);
-        GetMethod get = new GetMethod(url);
-        HttpClient httpClient = data.getHttpClient();
-        try {
-            initHttpMethod(get, null);
-            return executeMethod(get, url, data);
-        } catch (SocketTimeoutException e) {
-            throw e;
-        } catch (ConnectTimeoutException e) {
-            throw e;
-        } finally {
-            get.releaseConnection();
-            httpClient.getHttpConnectionManager().closeIdleConnections(0);
-        }
-    }
-
-    /**
-     * http get调用
-     */
-    public static String get(HttpRequestData data, String url, int milliseconds) throws IOException {
-        url = urlSpecialChar(url);
-        GetMethod get = new GetMethod(url);
-        HttpClient httpClient = data.getHttpClient();
-        try {
-            initHttpMethod(get, null);
-            get.getParams().setSoTimeout(milliseconds);// 设置超时
-            return executeMethod(get, url, data);
-        } catch (SocketTimeoutException e) {
-            throw e;
-        } catch (ConnectTimeoutException e) {
-            throw e;
-        } finally {
-            get.releaseConnection();
-            httpClient.getHttpConnectionManager().closeIdleConnections(0);
-        }
-    }
-
-    /**
-     * 对url的特殊字符特殊处理u
-     *
-     * @param value 待处理的字符串
-     * @return 返回处理后的字符串
-     */
-    public static String urlFormat(String value) {
-        return value.replaceAll("&amp;", "&");
-    }
-
-    public static String get(HttpRequestData data, String url, Map<String, String> input, String charset, int milliseconds) throws IOException {
-        StringBuilder urlBuilder = new StringBuilder(url);
-        boolean first = true;
-        // reconstitute the query, ready for appends
-        if (!url.contains("?"))
-            urlBuilder.append("?");
-        for (Entry<String, String> entry : input.entrySet()) {
-            if (!first)
-                urlBuilder.append('&');
-            else
-                first = false;
-            urlBuilder.append(entry.getKey()).append('=').append(URLEncoder.encode(entry.getValue(), charset));
-        }
-        url = urlBuilder.toString();
-        return get(data, url, milliseconds);
-    }
-
-    public static String get(HttpRequestData data, String url, Map<String, String> input, String charset) throws IOException {
-        StringBuilder urlBuilder = new StringBuilder(url);
-        boolean first = true;
-        // reconstitute the query, ready for appends
-        if (!url.contains("?"))
-            urlBuilder.append("?");
-        for (Entry<String, String> entry : input.entrySet()) {
-            if (!first)
-                urlBuilder.append('&');
-            else
-                first = false;
-            urlBuilder.append(entry.getKey()).append('=').append(URLEncoder.encode(entry.getValue(), charset));
-        }
-        url = urlBuilder.toString();
-        return get(data, url);
-    }
-
-    /**
-     * http post调用
-     */
-    public static String post(HttpRequestData data, String url) throws IOException {
-        return post(data, url, null);
-    }
-
-    public static String post(HttpRequestData data, String url, Map<String, String> inputs) throws IOException {
-        return post(data, url, inputs, null);
-    }
-
-    /**
-     * http post调用
-     */
-    public static String post(HttpRequestData data, String url, Map<String, String> inputs, Map<String, String> headers) throws IOException {
-        url = urlSpecialChar(url);
-        PostMethod post = new PostMethod(url);
-        HttpClient httpClient = data.getHttpClient();
-        try {
-            initHttpMethod(post, headers);
-            if (null != inputs) {
-                for (Entry<String, String> entry : inputs.entrySet()) {
-                    post.addParameter(entry.getKey(), entry.getValue());
-                }
-            }
-            return executeMethod(post, url, data);
-        } catch (SocketTimeoutException e) {
-            throw e;
-        } catch (ConnectTimeoutException e) {
-            throw e;
-        } finally {
-            post.releaseConnection();
-            httpClient.getHttpConnectionManager().closeIdleConnections(0);
-        }
-    }
-
-
-    /**
-     * http post调用
-     */
-    public static String post(HttpRequestData data, String url, Map<String, String> inputs, Map<String, String> headers, String encode) throws IOException {
-
-        PostMethod post = new PostMethod(url);
-        HttpClient httpClient = data.getHttpClient();
-        try {
-            initHttpMethod(post, headers);
-            httpClient.getParams().setParameter(
-                    HttpMethodParams.HTTP_CONTENT_CHARSET, encode);
-            if (null != inputs) {
-                for (Entry<String, String> entry : inputs.entrySet()) {
-                    post.addParameter(entry.getKey(), entry.getValue());
-                }
-            }
-            return executeMethod(post, url, data);
-        } catch (SocketTimeoutException e) {
-            throw e;
-        } catch (ConnectTimeoutException e) {
-            throw e;
-        } finally {
-            post.releaseConnection();
-            httpClient.getHttpConnectionManager().closeIdleConnections(0);
-        }
-    }
-
-    /**
-     * http post流
-     * 用数据接口条用，添加编码
-     */
-    public static String post2(HttpRequestData data, String url, Map<String, String> inputs, String encode) throws IOException {
-        StringBuilder postData = new StringBuilder();
-        try {
-            if (null != inputs) {
-                for (Entry<String, String> entry : inputs.entrySet()) {
-                    postData.append(URLEncoder.encode(entry.getKey(), encode)).append("=").append(URLEncoder.encode(entry.getValue(), encode)).append("&");
-                }
-            }
-        } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
-        }
-        return postData(data, url, postData.toString(), encode);
-    }
-
-    /**
-     * http post流
-     * <p/>
-     * 即不是post key-value模型的数据，而是post一段json文字
-     */
-    public static String postData(HttpRequestData data, String url, String param) throws IOException {
-        return postData(data, url, param, DEFAOUT_CHARSET);
-    }
-
-
-    public static String postData(HttpRequestData data, String url, String param, String charset) throws IOException {
-        return postData(data, url, param, charset, null);
-    }
-
-    public static String postData(HttpRequestData data, String url, String param, Map<String, String> headers) throws IOException {
-        return postData(data, url, param, DEFAOUT_CHARSET, headers);
-    }
-
-    /**
-     * http post流
-     * <p/>
-     * 即不是post key-value模型的数据，而是post一段json文字
-     */
-    public static String postData(HttpRequestData data, String url, String param, String charset, Map<String, String> headers) throws IOException {
-        PostMethod post = new PostMethod(url);
-        HttpClient httpClient = data.getHttpClient();
-        try {
-            initHttpMethod(post, headers);
-            RequestEntity entity = new StringRequestEntity(param, "text/html", charset);
-            post.setRequestEntity(entity);
-            httpClient.executeMethod(post);
-            return executeMethod(post, url, data);
-        } catch (SocketTimeoutException e) {
-            throw e;
-        } catch (ConnectTimeoutException e) {
-            throw e;
-        } finally {
-            post.releaseConnection();
-            httpClient.getHttpConnectionManager().closeIdleConnections(0);
-        }
-    }
-
-    /**
-     * 日志
-     */
-    private static void trace(HttpClient httpClient, String url, String html) {
-        if (log.isInfoEnabled()) {
-            log.info("===========================================" + url + "===========================================");
-            for (Cookie e : httpClient.getState().getCookies()) {
-                log.info(e.getName() + "===" + e.getValue() + ",threadId " + Thread.currentThread().getId());
-            }
-//			if (!StringUtils.isEmpty(html)) {
-//				log.info(html);
-//			} else {
-//				log.info("html is empty");
-//			}
-            log.info("===========================================" + url + "===========================================");
-        }
-    }
-
-    /**
-     * protocol://host/href
-     */
-    private static String completeUrl(String base, String href) {
-        return URLUtil.completeUrl(href, base);
-    }
-
-    public static String postFormData(HttpRequestData data, String url, Map<String, Object> inputs) throws IOException {
-        return postFormData(data, url, inputs,null);
-    }
-
-    public static String postFormData(HttpRequestData data, String url, Map<String, Object> inputs, Map<String, String> headers) throws IOException {
-        HttpClient httpClient = new HttpClient();
-        PostMethod post = new PostMethod(url);
-        try {
-            initHttpMethod(post, headers);
-            Part[] parts = new Part[inputs.size()];
-            int index = 0;
-            for (Map.Entry<String, Object> entry : inputs.entrySet()) {
-                Object valueObj = entry.getValue();
-                if (valueObj instanceof byte[]) {
-                    ByteArrayPartSource byteArrayPartSource = new ByteArrayPartSource("valid.jpeg", (byte[]) entry.getValue());
-                    parts[index] = new FilePart(entry.getKey(), byteArrayPartSource, " image/jpeg", "utf-8");
-                } else {
-                    //其余为String
-                    parts[index] = new StringPart(entry.getKey(), (String) entry.getValue(),"utf-8");
-                }
-                index ++;
-            }
-            MultipartRequestEntity entity = new MultipartRequestEntity(parts, post.getParams());
-            post.setRequestEntity(entity);
-            return executeMethod(post, url, data);
-        } catch (SocketTimeoutException e) {
-            throw e;
-        } catch (ConnectTimeoutException e) {
-            throw e;
-        } finally {
-            post.releaseConnection();
-            httpClient.getHttpConnectionManager().closeIdleConnections(0);
-        }
-    }
-
-    public static void main(String[] args) {
-        try {
-            System.out.println(FetchUtils.get(new HttpRequestData(), "http://www.baidu.com"));
+            post.setHeaders(headerGroup.getAllHeaders());
+            post.setEntity(httpEntity);
+            HttpResponse response = client.execute(post);
+            responseContent = EntityUtils.toString(response.getEntity());
+            // 确保实体内容被完全消耗
+            EntityUtils.consumeQuietly(response.getEntity());
+        } catch (ClientProtocolException e) {
+            throw new ClientProtocolException(e);
         } catch (IOException e) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(e.toString());
-            StackTraceElement[] stes = e.getStackTrace();
-            int length = Math.min(stes.length, 5);
-            for (int i = 0; i < length; i++) {
-                sb.append("\n\t").append("at ").append(stes[i].toString());
-            }
-            System.out.println(sb);
+            throw new IOException(e);
+        } finally {
+            post.releaseConnection();
         }
+        return responseContent;
     }
 
+    public static String post(HttpClient client, String url, Map<String, String> inputs, RequestConfig requestConfig, Map<String, String> headers) throws IOException {
+        String responseContent = null;
+        HttpPost post = null;
+        try {
+            List<NameValuePair> parameters = new ArrayList<NameValuePair>();
+            if (null != inputs) {
+                for (Map.Entry<String, String> entry : inputs.entrySet()) {
+                    parameters.add(new BasicNameValuePair(entry.getKey(), entry.getValue()));
+                }
+            }
+            post = new HttpPost(url);
+            if (null != requestConfig) {
+                post.setConfig(requestConfig);
+            }
+            if (null == headers) {
+                headers = DEAULT_HEAHDERMAP;
+            } else {
+                //如果请求头没有默认值，使用默认值
+                for (Map.Entry<String, String> entry : DEAULT_HEAHDERMAP.entrySet()) {
+                    if (!headers.containsKey(entry.getKey())) {
+                        headers.put(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+            HeaderGroup headerGroup = new HeaderGroup();
+            for (Map.Entry<String, String> entry : headers.entrySet()) {
+                headerGroup.addHeader(new BasicHeader(entry.getKey(), entry.getValue()));
+            }
+            post.setHeaders(headerGroup.getAllHeaders());
+            post.setEntity(new UrlEncodedFormEntity(parameters, "utf-8"));
+            HttpResponse response = client.execute(post);
+            responseContent = EntityUtils.toString(response.getEntity());
+            // 确保实体内容被完全消耗
+            EntityUtils.consumeQuietly(response.getEntity());
+        } catch (ClientProtocolException e) {
+            throw new ClientProtocolException(e);
+        } catch (IOException e) {
+            throw new IOException(e);
+        } finally {
+            post.releaseConnection();
+        }
+        return responseContent;
+    }
 }

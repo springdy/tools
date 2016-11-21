@@ -29,7 +29,7 @@ public class DateFormat {
         return getDateFormat(format).parse(value);
     }
 
-    public static String format(Date date,final String format) throws ParseException {
+    public static String format(Date date,final String format){
         return getDateFormat(format).format(date);
     }
 

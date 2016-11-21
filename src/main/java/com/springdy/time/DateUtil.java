@@ -38,6 +38,28 @@ public class DateUtil {
         return parse(date, pattern, null);
     }
 
+    public static Date getDate(int year, int month, int day) {
+        return getDate(year, month, day, 0, 0, 0);
+    }
+
+    public static Date getDate(int year, int month, int day, int hour, int minute, int secord) {
+        Calendar cal = Calendar.getInstance();
+        cal.set(Calendar.YEAR, year);
+        cal.set(Calendar.MONTH, month - 1);
+        cal.set(Calendar.DAY_OF_MONTH, day);
+        cal.set(Calendar.HOUR_OF_DAY, hour);
+        cal.set(Calendar.MINUTE, minute);
+        cal.set(Calendar.SECOND, secord);
+        cal.set(Calendar.MILLISECOND, 0);
+        return cal.getTime();
+    }
+
+    public static int getDayOfMonth(Date date){
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(date);
+        return cal.get(Calendar.DAY_OF_MONTH);
+    }
+
     public static Date parse(String date, String pattern, Locale locale) {
         String key = pattern;
         if (null != locale)
@@ -164,13 +186,10 @@ public class DateUtil {
     }
 
     /**
-     * @param d1
-     *            第一个时间
-     * @param d2
-     *            第二个时间
-     * @param unit
-     *            时间差单位(Calendar.MINUTE,Calendar.SECOND,Calendar.DATE,Calendar.
-     *            MILLISECOND)
+     * @param d1   第一个时间
+     * @param d2   第二个时间
+     * @param unit 时间差单位(Calendar.MINUTE,Calendar.SECOND,Calendar.DATE,Calendar.
+     *             MILLISECOND)
      * @return
      */
     public static int timeDiff(Date d1, Date d2, int unit) {
